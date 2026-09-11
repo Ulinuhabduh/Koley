@@ -1,0 +1,81 @@
+{
+  "wargas": [
+    {
+      "id": "w_mtwpzp9t_m0mrwa",
+      "nama": "Ukeng",
+      "createdAt": "2026-09-11T08:54:31.601Z"
+    },
+    {
+      "id": "w_mtwpzxne_2ttmts",
+      "nama": "Okit",
+      "createdAt": "2026-09-11T08:54:42.458Z"
+    }
+  ],
+  "transaksis": [
+    {
+      "id": "t_mtwpzp9t_ilfwf0",
+      "wargaId": "w_mtwpzp9t_m0mrwa",
+      "nama": "Ukeng",
+      "jumlah": 50000,
+      "tanggal": "2026-09-11",
+      "bulan": "2026-09",
+      "keterangan": "Iuran September",
+      "createdAt": "2026-09-11T08:54:31.601Z"
+    },
+    {
+      "id": "t_mtwpzxne_t8nbg6",
+      "wargaId": "w_mtwpzxne_2ttmts",
+      "nama": "Okit",
+      "jumlah": 50000,
+      "tanggal": "2026-09-11",
+      "bulan": "2026-09",
+      "keterangan": "Iuran September",
+      "createdAt": "2026-09-11T08:54:42.458Z"
+    },
+    {
+      "id": "t_mtwrik4k_wpv30q",
+      "wargaId": "w_mtwpzp9t_m0mrwa",
+      "nama": "Ukeng",
+      "jumlah": 100000,
+      "tanggal": "2026-09-11",
+      "bulan": "2026-10",
+      "keterangan": "",
+      "createdAt": "2026-09-11T09:37:11.012Z"
+    }
+  ],
+  "pengeluarans": [
+    {
+      "id": "k_mtwr20fn_ihxkpy",
+      "jenis": "penarikan",
+      "wargaId": "w_mtwpzp9t_m0mrwa",
+      "nama": "Ukeng",
+      "jumlah": 25000,
+      "tanggal": "2026-09-11",
+      "bulan": "2026-09",
+      "keterangan": "Ambil Tabungan",
+      "createdAt": "2026-09-11T09:24:18.995Z"
+    },
+    {
+      "id": "k_mtwrlfem_5rzkj6",
+      "jenis": "penarikan",
+      "wargaId": "w_mtwpzp9t_m0mrwa",
+      "nama": "Ukeng",
+      "jumlah": 120000,
+      "tanggal": "2026-11-11",
+      "bulan": "2026-11",
+      "keterangan": "Ambil Tabungan",
+      "createdAt": "2026-09-11T09:39:24.862Z"
+    },
+    {
+      "id": "k_mtwrufup_wqk1ou",
+      "jenis": "belanja",
+      "wargaId": null,
+      "nama": "Print Brosur",
+      "jumlah": 50000,
+      "tanggal": "2026-10-12",
+      "bulan": "2026-10",
+      "keterangan": "",
+      "createdAt": "2026-09-11T09:46:25.345Z"
+    }
+  ]
+}
