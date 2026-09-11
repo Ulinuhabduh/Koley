@@ -248,7 +248,21 @@ export function writeDB(db: DBShape) {
   if (!Array.isArray(db.transfers)) db.transfers = [];
   // sinkronkan field legacy = total saldo awal semua tempat (untuk kompatibilitas backup lama)
   db.saldoAwal = db.tempats.reduce((s, t) => s + (Number(t.saldoAwal) || 0), 0);
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  // tulis atomik: simpan ke file sementara dulu, baru rename.
+  // Mencegah koley.json rusak bila proses terputus / disk penuh di tengah penulisan.
+  const tmpFile = `${DB_FILE}.tmp-${process.pid}`;
+  fs.writeFileSync(tmpFile, JSON.stringify(db, null, 2));
+  try {
+    fs.renameSync(tmpFile, DB_FILE);
+  } catch {
+    // rename gagal (mis. beda filesystem) -> fallback tulis langsung
+    fs.writeFileSync(DB_FILE, fs.readFileSync(tmpFile));
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch {
+      /* abaikan */
+    }
+  }
 }
 
 export function uid(prefix: string) {

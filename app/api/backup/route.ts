@@ -19,7 +19,21 @@ export async function GET() {
 // POST /api/backup { wargas, transaksis, pengeluarans?, tempats?, transfers? } -> ganti database (restore)
 // Data lama otomatis disimpan sebagai file backup bertanggal sebelum diganti.
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null);
+  try {
+    return await restoreDB(req);
+  } catch (err: any) {
+    // jangan pernah biarkan error tak tertangani -> respons kosong yang bikin client bingung
+    return NextResponse.json({ error: `Server gagal memproses restore: ${err?.message || err}` }, { status: 500 });
+  }
+}
+
+async function restoreDB(req: Request) {
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Body bukan JSON valid / kosong. Pastikan file backup berformat .json dan tidak rusak." }, { status: 400 });
+  }
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "File tidak valid (bukan JSON object)" }, { status: 400 });
   }

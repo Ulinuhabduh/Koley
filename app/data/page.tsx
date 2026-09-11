@@ -30,10 +30,30 @@ export default function DataPage() {
     loadInfo();
   }, []);
 
+  // Baca respons fetch dengan aman: jangan langsung r.json() karena respons
+  // kosong/rusak dari server melempar "Unexpected end of JSON input".
+  async function parseResponse(r: Response) {
+    const text = await r.text();
+    let j: any = null;
+    try {
+      j = text ? JSON.parse(text) : null;
+    } catch {
+      /* respons bukan JSON */
+    }
+    if (j === null) {
+      throw new Error(
+        r.ok
+          ? "Server mengirim respons kosong/tidak valid. Coba lagi, atau restart server lalu ulangi."
+          : `Server merespons dengan status ${r.status}${text ? `: ${text.slice(0, 200)}` : " tanpa pesan"}.`
+      );
+    }
+    return j;
+  }
+
   async function downloadBackup() {
     setMsg(null);
     const r = await fetch("/api/backup", { cache: "no-store" });
-    const j = await r.json();
+    const j = await parseResponse(r);
     const blob = new Blob([JSON.stringify(j, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -51,6 +71,7 @@ export default function DataPage() {
     if (!f) return;
     try {
       const text = await f.text();
+      if (!text.trim()) throw new Error("File kosong (0 byte). Kemungkinan proses unduh backup sebelumnya terputus — unduh ulang.");
       const parsed = JSON.parse(text);
       if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.wargas) || !Array.isArray(parsed.transaksis)) {
         throw new Error("Bukan file backup Koley (wajib ada 'wargas' & 'transaksis').");
@@ -85,7 +106,7 @@ export default function DataPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(preview.parsed),
       });
-      const j = await r.json();
+      const j = await parseResponse(r);
       if (!r.ok) throw new Error(j.error || "Restore gagal");
       setMsg({
         ok: true,
