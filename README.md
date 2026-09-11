@@ -14,10 +14,11 @@ npm run dev
 - **Transaksi kas masuk**: nama, jumlah, tanggal bayar, periode bulan, keterangan. Tanpa upload bukti/foto.
 - **Data warga**: tambah manual, cari, status Sudah/Belum bayar per periode, total setoran.
 - **Laporan transparan**: dashboard total dana + grafik 12 bulan, rekap per bulan & per warga, filter nama/bulan, Export CSV (bisa dibuka di Excel), Cetak/PDF.
+- **Multi tempat saldo**: kas bisa dipecah ke beberapa dompet (Kas Tunai, Bank BRI, DANA, dll). Ada transfer/pindah saldo antar tempat, saldo tiap tempat dijaga agar tidak minus.
 - **Database**: file lokal `data/koley.json` (otomatis dibuat). Backup cukup copy file itu.
 
 ## Struktur
 - `app/` → halaman Dashboard, Input, Warga, Laporan
-- `app/api/` → API warga, transaksi, rekap
+- `app/api/` → API warga, transaksi, rekap, tempat saldo, transfer
 - `lib/db.ts` → penyimpanan file JSON
 - `data/koley.json` → database (jangan dihapus)

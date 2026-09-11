@@ -4,6 +4,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { rupiah, bulanLabel } from "@/lib/format";
 
+type TempatSaldo = {
+  id: string;
+  nama: string;
+  keterangan: string;
+  saldoAwal: number;
+  masuk: number;
+  keluar: number;
+  transferMasuk: number;
+  transferKeluar: number;
+  saldo: number;
+};
+
 type Rekap = {
   saldoAwal: number;
   totalDana: number;
@@ -17,8 +29,9 @@ type Rekap = {
   statusBulanIni: { bulan: string; sudah: number; belum: number };
   perBulan: { bulan: string; total: number; count: number; keluar: number; countKeluar: number }[];
   perWarga: { wargaId: string; nama: string; total: number; count: number; terakhir: string }[];
-  recent: { id: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string }[];
-  recentKeluar: { id: string; jenis: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string }[];
+  perTempat?: TempatSaldo[];
+  recent: { id: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string; tempatNama?: string }[];
+  recentKeluar: { id: string; jenis: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string; tempatNama?: string }[];
 };
 
 export default function Dashboard() {
@@ -74,6 +87,29 @@ export default function Dashboard() {
               value={`${data.statusBulanIni.sudah} / ${data.totalWarga} warga`}
             />
           </div>
+
+          {/* Rincian per tempat penyimpanan */}
+          {data.perTempat && data.perTempat.length > 0 && (
+            <div className="card p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold">Saldo per Tempat</h2>
+                <Link href="/tempat" className="text-[13px] font-medium text-emerald-700 hover:underline no-print">
+                  Kelola tempat →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {data.perTempat.map((t) => (
+                  <Link key={t.id} href="/tempat" className="rounded-xl border border-stone-200 p-3 hover:border-emerald-300 hover:bg-emerald-50/50 transition">
+                    <p className="text-xs font-semibold text-stone-500 truncate">💰 {t.nama}</p>
+                    <p className="font-bold text-emerald-800 mt-0.5">{rupiah(t.saldo)}</p>
+                    <p className="text-[11px] text-stone-400 mt-0.5">
+                      +{rupiah(t.masuk)}{t.keluar > 0 ? ` • −${rupiah(t.keluar)}` : ""}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid lg:grid-cols-5 gap-4">
             <div className="card p-4 sm:p-5 lg:col-span-3">

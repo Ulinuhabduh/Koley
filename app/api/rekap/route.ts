@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
-import { readDB } from "@/lib/db";
+import { readDB, saldoTempat } from "@/lib/db";
 import { currentBulan, bulanKeyTahunBulan } from "@/lib/format";
 
 // GET /api/rekap -> ringkasan dashboard + laporan transparan
 export async function GET() {
   const db = readDB();
-  const saldoAwal = db.saldoAwal || 0;
+  const saldoAwal = db.tempats.reduce((s, t) => s + (t.saldoAwal || 0), 0);
   const totalDana = db.transaksis.reduce((s, t) => s + t.jumlah, 0);
   const totalKeluar = db.pengeluarans.reduce((s, t) => s + t.jumlah, 0);
   const saldo = saldoAwal + totalDana - totalKeluar;
   const totalWarga = db.wargas.length;
   const totalTransaksi = db.transaksis.length;
+
+  // rincian per tempat penyimpanan
+  const perTempat = db.tempats.map((t) => ({
+    id: t.id,
+    nama: t.nama,
+    keterangan: t.keterangan,
+    ...saldoTempat(db, t.id),
+  }));
 
   const bulanIni = currentBulan();
   const trxBulanIni = db.transaksis.filter((t) => t.bulan === bulanIni);
@@ -68,6 +76,10 @@ export async function GET() {
     .sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt))
     .slice(0, 5);
 
+  const recentTransfer = [...db.transfers]
+    .sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt))
+    .slice(0, 5);
+
   return NextResponse.json({
     saldoAwal,
     totalDana,
@@ -81,7 +93,9 @@ export async function GET() {
     statusBulanIni,
     perBulan,
     perWarga,
+    perTempat,
     recent,
     recentKeluar,
+    recentTransfer,
   });
 }

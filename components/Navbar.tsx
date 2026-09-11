@@ -8,6 +8,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/input", label: "Input Iuran" },
   { href: "/keluar", label: "Kas Keluar" },
+  { href: "/tempat", label: "Tempat Saldo" },
   { href: "/warga", label: "Data Warga" },
   { href: "/laporan", label: "Laporan" },
 ];

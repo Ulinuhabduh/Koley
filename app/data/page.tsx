@@ -8,6 +8,8 @@ type Preview = {
   wargas: number;
   transaksis: number;
   pengeluarans: number;
+  tempats: number;
+  transfers: number;
   totalMasuk: number;
   totalKeluar: number;
   parsed: any;
@@ -20,35 +22,9 @@ export default function DataPage() {
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // --- saldo awal ---
-  const [saJumlah, setSaJumlah] = useState("");
-  const [saKet, setSaKet] = useState("");
-  const [saTanggal, setSaTanggal] = useState("");
-  const [saSaved, setSaSaved] = useState(false);
-
   async function loadInfo() {
     const r = await fetch("/api/rekap", { cache: "no-store" });
     setInfo(await r.json());
-    const rs = await fetch("/api/saldo-awal", { cache: "no-store" });
-    const js = await rs.json();
-    if (js.saldoAwal) setSaJumlah(String(js.saldoAwal));
-    setSaKet(js.keterangan || "");
-    setSaTanggal(js.tanggal || "");
-  }
-
-  async function simpanSaldoAwal(e: React.FormEvent) {
-    e.preventDefault();
-    setSaSaved(false);
-    setMsg(null);
-    const r = await fetch("/api/saldo-awal", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jumlah: Number(saJumlah) || 0, keterangan: saKet, tanggal: saTanggal }),
-    });
-    const j = await r.json();
-    if (!r.ok) return setMsg({ ok: false, text: j.error || "Gagal menyimpan saldo awal" });
-    setSaSaved(true);
-    loadInfo();
   }
   useEffect(() => {
     loadInfo();
@@ -85,6 +61,8 @@ export default function DataPage() {
         wargas: parsed.wargas.length,
         transaksis: parsed.transaksis.length,
         pengeluarans: Array.isArray(parsed.pengeluarans) ? parsed.pengeluarans.length : 0,
+        tempats: Array.isArray(parsed.tempats) ? parsed.tempats.length : 0,
+        transfers: Array.isArray(parsed.transfers) ? parsed.transfers.length : 0,
         totalMasuk: sum(parsed.transaksis),
         totalKeluar: Array.isArray(parsed.pengeluarans) ? sum(parsed.pengeluarans) : 0,
         parsed,
@@ -111,7 +89,7 @@ export default function DataPage() {
       if (!r.ok) throw new Error(j.error || "Restore gagal");
       setMsg({
         ok: true,
-        text: `Restore berhasil: ${j.imported.wargas} warga, ${j.imported.transaksis} iuran masuk, ${j.imported.pengeluarans} pengeluaran.`,
+        text: `Restore berhasil: ${j.imported.wargas} warga, ${j.imported.transaksis} iuran masuk, ${j.imported.pengeluarans} pengeluaran, ${j.imported.tempats ?? 0} tempat.`,
       });
       setPreview(null);
       loadInfo();
@@ -142,49 +120,26 @@ export default function DataPage() {
         </div>
       )}
 
-      <div className="card p-4 sm:p-5">
-        <h2 className="font-semibold">💰 Saldo Awal</h2>
-        <p className="text-[13px] text-stone-500 mt-1 mb-3">
-          Uang kas yang sudah ada sebelum aplikasi dipakai. Otomatis ditambahkan ke semua hitungan saldo.
-        </p>
-        <form onSubmit={simpanSaldoAwal} className="space-y-3">
-          <div>
-            <label className="label">Jumlah saldo awal (Rp)</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              step={500}
-              placeholder="cth: 500000"
-              value={saJumlah}
-              onChange={(e) => setSaJumlah(e.target.value)}
-              inputMode="numeric"
-            />
+      {(info?.perTempat || []).length > 0 && (
+        <div className="card p-4 text-sm">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="font-semibold">Tempat penyimpanan</p>
+            <a href="/tempat" className="text-[13px] text-emerald-700 underline">Kelola →</a>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Tanggal dihitung</label>
-              <input className="input" type="date" value={saTanggal} onChange={(e) => setSaTanggal(e.target.value)} />
+          {(info.perTempat || []).map((t: any) => (
+            <div key={t.id} className="flex justify-between py-1">
+              <span className="text-stone-500">💰 {t.nama}</span>
+              <b>{rupiah(t.saldo)}</b>
             </div>
-            <div>
-              <label className="label">Keterangan</label>
-              <input
-                className="input"
-                placeholder="cth: sisa kas 2025"
-                value={saKet}
-                onChange={(e) => setSaKet(e.target.value)}
-              />
-            </div>
-          </div>
-          <button className="btn-primary text-sm w-full sm:w-auto">Simpan Saldo Awal</button>
-          {saSaved && <p className="text-[13px] text-emerald-700">✓ Saldo awal tersimpan dan sudah masuk hitungan.</p>}
-        </form>
-      </div>
+          ))}
+          <p className="text-[11px] text-stone-400 mt-1">Saldo awal & pindah saldo diatur di halaman Tempat Saldo.</p>
+        </div>
+      )}
 
       <div className="card p-4 sm:p-5">
         <h2 className="font-semibold">⬇ Unduh Backup (JSON)</h2>
         <p className="text-[13px] text-stone-500 mt-1 mb-3">
-          Berisi seluruh data: warga, iuran masuk, dan pengeluaran. Lakukan rutin tiap bulan.
+          Berisi seluruh data: warga, iuran masuk, pengeluaran, tempat saldo & pindah saldo. Lakukan rutin tiap bulan.
         </p>
         <button onClick={downloadBackup} className="btn-primary text-sm w-full sm:w-auto">
           Unduh koley-backup-{todayISO()}.json
@@ -207,6 +162,7 @@ export default function DataPage() {
             <div className="flex justify-between py-1 mt-1"><span className="text-stone-500">Warga</span><b>{preview.wargas}</b></div>
             <div className="flex justify-between py-1"><span className="text-stone-500">Iuran masuk</span><b>{preview.transaksis} • {rupiah(preview.totalMasuk)}</b></div>
             <div className="flex justify-between py-1"><span className="text-stone-500">Pengeluaran</span><b>{preview.pengeluarans} • {rupiah(preview.totalKeluar)}</b></div>
+            <div className="flex justify-between py-1"><span className="text-stone-500">Tempat saldo</span><b>{preview.tempats} tempat{preview.transfers > 0 ? ` • ${preview.transfers} transfer` : ""}</b></div>
             <p className="text-xs text-amber-700 mt-2">
               ⚠️ Restore akan MENGGANTI seluruh data saat ini. Data lama otomatis dicadangkan di server.
             </p>

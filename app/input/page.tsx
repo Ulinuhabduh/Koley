@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { rupiah, todayISO, currentBulan } from "@/lib/format";
+import RupiahInput from "@/components/RupiahInput";
 
 type WargaOpt = { id: string; nama: string; total: number; count: number };
 
@@ -20,6 +21,8 @@ function InputInner() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [recent, setRecent] = useState<any[]>([]);
+  const [tempats, setTempats] = useState<{ id: string; nama: string; saldo: number }[]>([]);
+  const [tempatId, setTempatId] = useState("");
   const timer = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -53,8 +56,16 @@ function InputInner() {
     const j = await r.json();
     setRecent(j.data || []);
   }
+  async function loadTempat() {
+    const r = await fetch("/api/tempat", { cache: "no-store" });
+    const j = await r.json();
+    setTempats(j.data || []);
+    if (!tempatId && j.data?.length > 0) setTempatId(j.data[0].id);
+  }
   useEffect(() => {
     loadRecent();
+    loadTempat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const exactMatch = opts.some((o) => o.nama.toLowerCase() === nama.trim().toLowerCase());
@@ -71,7 +82,7 @@ function InputInner() {
       const r = await fetch("/api/transaksi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan }),
+        body: JSON.stringify({ nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan, tempatId }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Gagal menyimpan");
@@ -203,14 +214,11 @@ function InputInner() {
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">
                 Rp
               </span>
-              <input
-                className="input !pl-10 !text-lg !font-bold !py-3"
-                type="number"
-                min={1000}
-                step={500}
+              <RupiahInput
+                className="input !pl-10 !text-lg !font-bold !py-3 !tracking-wide"
+                placeholder="0"
                 value={jumlah}
-                onChange={(e) => setJumlah(e.target.value)}
-                inputMode="numeric"
+                onChange={setJumlah}
               />
             </div>
             <div className="grid grid-cols-4 gap-2 mt-2">
@@ -257,6 +265,23 @@ function InputInner() {
                 onChange={(e) => setBulan(e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Simpan ke tempat mana */}
+          <div>
+            <label className="label">Simpan ke</label>
+            <select className="input" value={tempatId} onChange={(e) => setTempatId(e.target.value)}>
+              {tempats.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nama} • saldo {rupiah(t.saldo)}
+                </option>
+              ))}
+            </select>
+            {tempats.length > 1 && (
+              <p className="text-[11px] text-stone-400 mt-1">
+                Uang akan masuk ke tempat ini. <a href="/tempat" className="text-emerald-700 underline">Kelola tempat</a>
+              </p>
+            )}
           </div>
 
           {/* Keterangan: disembunyikan di balik toggle agar form lega */}
@@ -308,6 +333,7 @@ function InputInner() {
                   <p className="font-medium">{t.nama}</p>
                   <p className="text-xs text-stone-500">
                     {t.tanggal} • {t.bulan}
+                    {t.tempatNama ? ` • ${t.tempatNama}` : ""}
                     {t.keterangan ? ` • ${t.keterangan}` : ""}
                   </p>
                 </div>

@@ -2,28 +2,30 @@ import { NextResponse } from "next/server";
 import { findWargaByNama, normalizeNama, readDB, uid, writeDB } from "@/lib/db";
 import { todayISO } from "@/lib/format";
 
-// GET /api/transaksi?q=&bulan=YYYY-MM&wargaId=&tahun=YYYY&limit=
+// GET /api/transaksi?q=&bulan=YYYY-MM&wargaId=&tahun=YYYY&tempatId=&limit=
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") || "").trim().toLowerCase();
   const bulan = (searchParams.get("bulan") || "").trim();
   const wargaId = (searchParams.get("wargaId") || "").trim();
   const tahun = (searchParams.get("tahun") || "").trim();
+  const tempatId = (searchParams.get("tempatId") || "").trim();
   const limit = parseInt(searchParams.get("limit") || "200", 10);
 
   const db = readDB();
   let list = [...db.transaksis].sort((a, b) =>
     (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt)
   );
-  if (q) list = list.filter((t) => t.nama.toLowerCase().includes(q));
+  if (q) list = list.filter((t) => (t.nama + " " + (t.keterangan || "")).toLowerCase().includes(q));
   if (bulan) list = list.filter((t) => t.bulan === bulan);
   if (wargaId) list = list.filter((t) => t.wargaId === wargaId);
   if (tahun) list = list.filter((t) => t.bulan.startsWith(tahun));
+  if (tempatId) list = list.filter((t) => t.tempatId === tempatId);
 
   return NextResponse.json({ data: list.slice(0, limit), total: list.length });
 }
 
-// POST /api/transaksi { nama, jumlah, tanggal, bulan, keterangan }
+// POST /api/transaksi { nama, jumlah, tanggal, bulan, keterangan, tempatId }
 // Jika nama belum ada -> otomatis buat warga baru. Jika ada -> langsung pakai.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -39,6 +41,14 @@ export async function POST(req: Request) {
   if (!/^\d{4}-\d{2}$/.test(bulan)) return NextResponse.json({ error: "Format bulan YYYY-MM" }, { status: 400 });
 
   const db = readDB();
+  // tempat tujuan: wajib valid, default ke tempat pertama
+  let tempat = db.tempats.find((t) => t.id === body.tempatId);
+  if (!tempat) {
+    if (body.tempatId) return NextResponse.json({ error: "Tempat penyimpanan tidak ditemukan" }, { status: 400 });
+    tempat = db.tempats[0];
+  }
+  if (!tempat) return NextResponse.json({ error: "Belum ada tempat penyimpanan" }, { status: 400 });
+
   let warga = findWargaByNama(db, nama);
   let wargaBaru = false;
   if (!warga) {
@@ -55,6 +65,8 @@ export async function POST(req: Request) {
     tanggal,
     bulan,
     keterangan,
+    tempatId: tempat.id,
+    tempatNama: tempat.nama,
     createdAt: new Date().toISOString(),
   };
   db.transaksis.push(trx);

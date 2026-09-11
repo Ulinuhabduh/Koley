@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { rupiah, todayISO, currentBulan, bulanLabel } from "@/lib/format";
+import RupiahInput from "@/components/RupiahInput";
 
 type WargaOpt = { id: string; nama: string; total: number; count: number };
-type Keluar = { id: string; jenis: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string };
+type Keluar = { id: string; jenis: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string; tempatNama?: string };
+type TempatOpt = { id: string; nama: string; saldo: number };
 
 function KeluarInner() {
   const sp = useSearchParams();
@@ -31,6 +33,8 @@ function KeluarInner() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [recent, setRecent] = useState<Keluar[]>([]);
   const [saldo, setSaldo] = useState<number | null>(null);
+  const [tempats, setTempats] = useState<TempatOpt[]>([]);
+  const [tempatId, setTempatId] = useState("");
   const timer = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +69,10 @@ function KeluarInner() {
     const rr = await fetch("/api/rekap", { cache: "no-store" });
     const rj = await rr.json();
     setSaldo(rj.saldo ?? 0);
+    const rt = await fetch("/api/tempat", { cache: "no-store" });
+    const jt = await rt.json();
+    setTempats(jt.data || []);
+    if (!tempatId && jt.data?.length > 0) setTempatId(jt.data[0].id);
   }
   useEffect(() => {
     loadRecent();
@@ -81,7 +89,7 @@ function KeluarInner() {
       const r = await fetch("/api/pengeluaran", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jenis, nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan }),
+        body: JSON.stringify({ jenis, nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan, tempatId }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Gagal menyimpan");
@@ -110,7 +118,22 @@ function KeluarInner() {
         <h1 className="text-xl font-bold">Kas Keluar</h1>
         <p className="text-[13px] text-stone-500 mb-4">
           Sisa saldo kas: <b className="text-emerald-700">{saldo === null ? "..." : rupiah(saldo)}</b>
+          {tempats.length > 1 && (
+            <span className="block mt-1 text-xs">
+              {tempats.map((t) => `${t.nama}: ${rupiah(t.saldo)}`).join(" • ")}
+            </span>
+          )}
         </p>
+        <div className="mb-5">
+          <label className="label">Ambil dari</label>
+          <select className="input" value={tempatId} onChange={(e) => setTempatId(e.target.value)}>
+            {tempats.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nama} • sisa {rupiah(t.saldo)}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Pilih jenis */}
         <div className="grid grid-cols-2 gap-2 mb-5 no-print">
@@ -170,15 +193,11 @@ function KeluarInner() {
             <label className="label">Jumlah</label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">Rp</span>
-              <input
-                className="input !pl-10 !text-lg !font-bold !py-3"
-                type="number"
-                min={1000}
-                step={500}
+              <RupiahInput
+                className="input !pl-10 !text-lg !font-bold !py-3 !tracking-wide"
                 placeholder="0"
                 value={jumlah}
-                onChange={(e) => setJumlah(e.target.value)}
-                inputMode="numeric"
+                onChange={setJumlah}
               />
             </div>
           </div>
@@ -240,7 +259,7 @@ function KeluarInner() {
                     {t.nama}
                   </p>
                   <p className="text-xs text-stone-500">
-                    {t.tanggal} • {bulanLabel(t.bulan)}{t.keterangan ? ` • ${t.keterangan}` : ""}
+                    {t.tanggal} • {bulanLabel(t.bulan)}{t.tempatNama ? ` • ${t.tempatNama}` : ""}{t.keterangan ? ` • ${t.keterangan}` : ""}
                   </p>
                 </div>
                 <div className="text-right shrink-0">

@@ -9,6 +9,8 @@ function LaporanInner() {
   const [q, setQ] = useState(sp.get("q") || "");
   const [bulan, setBulan] = useState("");
   const [jenis, setJenis] = useState<"semua" | "masuk" | "keluar">("semua");
+  const [tempatId, setTempatId] = useState("");
+  const [tempats, setTempats] = useState<any[]>([]);
   const [masuk, setMasuk] = useState<any[]>([]);
   const [keluar, setKeluar] = useState<any[]>([]);
   const [rekap, setRekap] = useState<any>(null);
@@ -19,15 +21,18 @@ function LaporanInner() {
     const p = new URLSearchParams();
     if (q.trim()) p.set("q", q.trim());
     if (bulan) p.set("bulan", bulan);
+    if (tempatId) p.set("tempatId", tempatId);
     p.set("limit", "1000");
-    const [rm, rk, rr] = await Promise.all([
+    const [rm, rk, rr, rt] = await Promise.all([
       fetch(`/api/transaksi?${p.toString()}`, { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/pengeluaran?${p.toString()}`, { cache: "no-store" }).then((r) => r.json()),
       fetch("/api/rekap", { cache: "no-store" }).then((r) => r.json()),
+      fetch("/api/tempat", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: [] })),
     ]);
     setMasuk(rm.data || []);
     setKeluar(rk.data || []);
     setRekap(rr);
+    if (rt.data) setTempats(rt.data);
     setLoading(false);
   }
 
@@ -47,18 +52,19 @@ function LaporanInner() {
   const tampil = jenis === "masuk" ? rows.filter((r) => r.arah === "masuk") : jenis === "keluar" ? rows.filter((r) => r.arah === "keluar") : rows;
 
   function exportCSV() {
-    const header = ["Tanggal", "Periode", "Jenis", "Nama", "Jumlah_Rp", "Keterangan"];
+    const header = ["Tanggal", "Periode", "Jenis", "Nama", "Tempat", "Jumlah_Rp", "Keterangan"];
     const body = tampil.map((t: any) => [
       t.tanggal,
       t.bulan,
       t.arah === "masuk" ? "MASUK" : t.jenis === "penarikan" ? "PENARIKAN" : "BELANJA",
       t.nama,
+      t.tempatNama || "",
       t.arah === "masuk" ? t.jumlah : -t.jumlah,
       t.keterangan || "",
     ]);
     downloadCSV(
       `laporan-kas${bulan ? "-" + bulan : ""}${q ? "-" + q : ""}.csv`,
-      toCSV([header, ...body, [], ["TOTAL MASUK", "", "", "", totalMasuk], ["TOTAL KELUAR", "", "", "", totalKeluar], ["SALDO", "", "", "", totalMasuk - totalKeluar]])
+      toCSV([header, ...body, [], ["TOTAL MASUK", "", "", "", "", totalMasuk], ["TOTAL KELUAR", "", "", "", "", totalKeluar], ["SALDO", "", "", "", "", totalMasuk - totalKeluar]])
     );
   }
 
@@ -115,7 +121,24 @@ function LaporanInner() {
           onKeyDown={(e) => e.key === "Enter" && load()}
         />
         <div className="space-y-2">
-          <input type="month" className="input w-full" value={bulan} onChange={(e) => setBulan(e.target.value)} />
+          <div className="grid grid-cols-2 gap-2">
+            <input type="month" className="input w-full" value={bulan} onChange={(e) => setBulan(e.target.value)} />
+            <select className="input w-full" value={tempatId} onChange={(e) => setTempatId(e.target.value)}>
+              <option value="">Semua tempat</option>
+              {tempats.map((t: any) => (
+                <option key={t.id} value={t.id}>{t.nama} • {rupiah(t.saldo)}</option>
+              ))}
+            </select>
+          </div>
+          {(rekap?.perTempat || []).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(rekap.perTempat || []).map((t: any) => (
+                <span key={t.id} className="text-[11px] bg-stone-100 rounded-full px-2.5 py-1">
+                  {t.nama}: <b>{rupiah(t.saldo)}</b>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={load} className="btn-primary text-sm flex-1">Tampilkan</button>
             <button
@@ -123,6 +146,7 @@ function LaporanInner() {
                 setQ("");
                 setBulan("");
                 setJenis("semua");
+                setTempatId("");
                 setTimeout(load, 50);
               }}
               className="btn-secondary text-sm"
@@ -207,7 +231,7 @@ function LaporanInner() {
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-sm truncate">{t.nama}</p>
                     <p className="text-[11px] text-stone-500">
-                      {t.tanggal} • {t.arah === "masuk" ? bulanLabel(t.bulan) : t.jenis === "penarikan" ? "Penarikan" : "Belanja"}
+                      {t.tanggal} • {t.arah === "masuk" ? bulanLabel(t.bulan) : t.jenis === "penarikan" ? "Penarikan" : "Belanja"}{t.tempatNama ? ` • ${t.tempatNama}` : ""}
                       {t.keterangan ? ` • ${t.keterangan}` : ""}
                     </p>
                   </div>
@@ -225,6 +249,7 @@ function LaporanInner() {
                     <th className="table-th">Tanggal</th>
                     <th className="table-th">Jenis</th>
                     <th className="table-th">Nama / Keperluan</th>
+                    <th className="table-th">Tempat</th>
                     <th className="table-th">Keterangan</th>
                     <th className="table-th text-right">Masuk</th>
                     <th className="table-th text-right">Keluar</th>
@@ -240,6 +265,7 @@ function LaporanInner() {
                         </span>
                       </td>
                       <td className="table-td font-medium">{t.nama}</td>
+                      <td className="table-td text-stone-500 whitespace-nowrap">{t.tempatNama || "-"}</td>
                       <td className="table-td text-stone-500">{t.keterangan || "-"}</td>
                       <td className="table-td text-right font-semibold text-emerald-700 whitespace-nowrap">
                         {t.arah === "masuk" ? rupiah(t.jumlah) : <span className="text-stone-300">-</span>}

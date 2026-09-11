@@ -6,6 +6,12 @@ export function rupiah(n: number) {
   }).format(n || 0);
 }
 
+export function formatRibuan(v: string | number) {
+  const digits = String(v ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  return Number(digits).toLocaleString("id-ID"); // cth: 1.500.000
+}
+
 export function todayISO(d = new Date()) {
   // waktu lokal (bukan UTC) agar tidak geser tanggal di WIB
   const y = d.getFullYear();
