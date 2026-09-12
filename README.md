@@ -15,7 +15,17 @@ npm run dev
 - **Data warga**: tambah manual, cari, status Sudah/Belum bayar per periode, total setoran.
 - **Laporan transparan**: dashboard total dana + grafik 12 bulan, rekap per bulan & per warga, filter nama/bulan, Export CSV (bisa dibuka di Excel), Cetak/PDF.
 - **Multi tempat saldo**: kas bisa dipecah ke beberapa dompet (Kas Tunai, Bank BRI, DANA, dll). Ada transfer/pindah saldo antar tempat, saldo tiap tempat dijaga agar tidak minus.
-- **Database**: file lokal `data/koley.json` (otomatis dibuat). Backup cukup copy file itu.
+- **Database**: satu file JSON lokal `data/koley.json` (otomatis dibuat). Backup cukup copy file itu.
+
+## Deploy / menjalankan di server sendiri
+Aplikasi ini menyimpan data di file lokal, jadi jalankan di PC/laptop/VPS yang punya disk
+(bukan platform serverless seperti Vercel — filesystem-nya read-only):
+```bash
+npm install
+npm run build
+npm start   # jalankan di port 3000, agar bisa diakses jaringan: npx next start -H 0.0.0.0
+```
+Semua data tersimpan di `data/koley.json`; restore & backup otomatis juga menulis ke folder `data/` di server.
 
 ## Struktur
 - `app/` → halaman Dashboard, Input, Warga, Laporan

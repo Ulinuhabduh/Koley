@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import { readDB, writeDB } from "@/lib/db";
+import { readDB, snapshotBackup, writeDB } from "@/lib/db";
 
 // GET /api/backup -> unduh seluruh database sebagai JSON
 export async function GET() {
@@ -154,13 +152,13 @@ async function restoreDB(req: Request) {
     : [];
 
   // simpan salinan data lama sebelum diganti (pengaman)
+  let snapshotCatatan = "";
   try {
-    const dir = path.join(process.cwd(), "data");
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    fs.writeFileSync(path.join(dir, `koley-backup-otomatis-${stamp}.json`), JSON.stringify(readDB(), null, 2));
-  } catch {
+    const snap = snapshotBackup();
+    snapshotCatatan = `Data lama dicadangkan ke file: ${snap.fileLokal}`;
+  } catch (err: any) {
     /* pengaman backup gagal bukan alasan batal restore */
+    snapshotCatatan = `Peringatan: cadangan data lama gagal dibuat (${err?.message || err})`;
   }
 
   writeDB({
@@ -176,6 +174,7 @@ async function restoreDB(req: Request) {
 
   return NextResponse.json({
     ok: true,
+    catatan: snapshotCatatan,
     imported: {
       wargas: wargas.length,
       transaksis: transaksis.length,

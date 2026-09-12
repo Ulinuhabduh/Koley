@@ -75,6 +75,34 @@ type DBShape = {
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "koley.json");
 
+function uid(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+function defaultDB(): DBShape {
+  const defTempat: Tempat = {
+    id: uid("tmp"),
+    nama: "Kas Tunai",
+    keterangan: "Uang tunai di tangan bendahara",
+    saldoAwal: 0,
+    saldoAwalKet: "",
+    saldoAwalTanggal: "",
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    wargas: [],
+    transaksis: [],
+    pengeluarans: [],
+    tempats: [defTempat],
+    transfers: [],
+    saldoAwal: 0,
+    saldoAwalKet: "",
+    saldoAwalTanggal: "",
+  };
+}
+
 function cleanTempat(t: any): Tempat | null {
   if (!t || typeof t.nama !== "string" || t.nama.trim().length < 2) return null;
   return {
@@ -88,28 +116,10 @@ function cleanTempat(t: any): Tempat | null {
   };
 }
 
-function ensureDB(): DBShape {
+export function readDB(): DBShape {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DB_FILE)) {
-    const defTempat: Tempat = {
-      id: uid("tmp"),
-      nama: "Kas Tunai",
-      keterangan: "Uang tunai di tangan bendahara",
-      saldoAwal: 0,
-      saldoAwalKet: "",
-      saldoAwalTanggal: "",
-      createdAt: new Date().toISOString(),
-    };
-    const init: DBShape = {
-      wargas: [],
-      transaksis: [],
-      pengeluarans: [],
-      tempats: [defTempat],
-      transfers: [],
-      saldoAwal: 0,
-      saldoAwalKet: "",
-      saldoAwalTanggal: "",
-    };
+    const init = defaultDB();
     fs.writeFileSync(DB_FILE, JSON.stringify(init, null, 2));
     return init;
   }
@@ -203,30 +213,8 @@ function ensureDB(): DBShape {
     }
     return db;
   } catch {
-    const defTempat: Tempat = {
-      id: uid("tmp"),
-      nama: "Kas Tunai",
-      keterangan: "",
-      saldoAwal: 0,
-      saldoAwalKet: "",
-      saldoAwalTanggal: "",
-      createdAt: new Date().toISOString(),
-    };
-    return {
-      wargas: [],
-      transaksis: [],
-      pengeluarans: [],
-      tempats: [defTempat],
-      transfers: [],
-      saldoAwal: 0,
-      saldoAwalKet: "",
-      saldoAwalTanggal: "",
-    };
+    return defaultDB();
   }
-}
-
-export function readDB(): DBShape {
-  return ensureDB();
 }
 
 export function writeDB(db: DBShape) {
@@ -265,11 +253,17 @@ export function writeDB(db: DBShape) {
   }
 }
 
-export function uid(prefix: string) {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+// Snapshot pengaman: salinan data lama ke file bertanggal di folder data/
+export function snapshotBackup(): { fileLokal: string } {
+  const db = readDB();
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const fileLokal = path.join(DATA_DIR, `koley-backup-otomatis-${stamp}.json`);
+  fs.writeFileSync(fileLokal, JSON.stringify(db, null, 2));
+  return { fileLokal };
 }
+
+export { uid };
 
 export function normalizeNama(nama: string) {
   return nama.trim().replace(/\s+/g, " ");
