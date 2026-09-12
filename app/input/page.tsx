@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { rupiah, todayISO, currentBulan } from "@/lib/format";
+import { listWarga, listTransaksi, listTempat, addTransaksi, deleteTransaksi, seedFromServerIfEmpty } from "@/lib/localdb";
 import RupiahInput from "@/components/RupiahInput";
 
 type WargaOpt = { id: string; nama: string; total: number; count: number };
@@ -33,10 +34,9 @@ function InputInner() {
       setOpts([]);
       return;
     }
-    timer.current = setTimeout(async () => {
-      const r = await fetch(`/api/warga?q=${encodeURIComponent(nama.trim())}`);
-      const j = await r.json();
-      setOpts(j.data || []);
+    timer.current = setTimeout(() => {
+      const data = listWarga(nama.trim());
+      setOpts(data || []);
       setShowDrop(true);
     }, 200);
     return () => clearTimeout(timer.current);
@@ -51,20 +51,20 @@ function InputInner() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  async function loadRecent() {
-    const r = await fetch("/api/transaksi?limit=8", { cache: "no-store" });
-    const j = await r.json();
-    setRecent(j.data || []);
+  function loadRecent() {
+    const { data } = listTransaksi({ limit: 8 });
+    setRecent(data || []);
   }
-  async function loadTempat() {
-    const r = await fetch("/api/tempat", { cache: "no-store" });
-    const j = await r.json();
-    setTempats(j.data || []);
-    if (!tempatId && j.data?.length > 0) setTempatId(j.data[0].id);
+  function loadTempat() {
+    const { data } = listTempat();
+    setTempats(data || []);
+    if (!tempatId && data?.length > 0) setTempatId(data[0].id);
   }
   useEffect(() => {
-    loadRecent();
-    loadTempat();
+    seedFromServerIfEmpty().finally(() => {
+      loadRecent();
+      loadTempat();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -79,13 +79,7 @@ function InputInner() {
 
     setSaving(true);
     try {
-      const r = await fetch("/api/transaksi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan, tempatId }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Gagal menyimpan");
+      const j = addTransaksi({ nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan, tempatId });
       setMsg({
         ok: true,
         text: j.wargaBaru
@@ -104,9 +98,9 @@ function InputInner() {
     }
   }
 
-  async function hapus(id: string) {
+  function hapus(id: string) {
     if (!confirm("Hapus transaksi ini? (untuk koreksi salah input)")) return;
-    await fetch(`/api/transaksi?id=${id}`, { method: "DELETE" });
+    deleteTransaksi(id);
     loadRecent();
   }
 

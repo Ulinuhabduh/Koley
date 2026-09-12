@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Navbar />
         <main className="max-w-6xl mx-auto px-4 pb-16 pt-6">{children}</main>
         <footer className="text-center text-xs text-stone-400 pb-8 no-print">
-          Koley • Iuran Rutin Desa • Data tersimpan lokal di server desa (data/koley.json)
+          Koley • Iuran Rutin Desa • Data tersimpan di browser perangkat ini (otomatis, tetap ada walau offline)
           <br />
           <a href="/data" className="underline hover:text-emerald-700">
             ⬇ Backup & Restore Data (JSON)

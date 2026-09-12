@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { rupiah, todayISO, currentBulan, bulanLabel } from "@/lib/format";
+import { listWarga, listPengeluaran, listTempat, addPengeluaran, deletePengeluaran, getRekap, seedFromServerIfEmpty } from "@/lib/localdb";
 import RupiahInput from "@/components/RupiahInput";
 
 type WargaOpt = { id: string; nama: string; total: number; count: number };
@@ -45,10 +46,9 @@ function KeluarInner() {
       setOpts([]);
       return;
     }
-    timer.current = setTimeout(async () => {
-      const r = await fetch(`/api/warga?q=${encodeURIComponent(nama.trim())}`);
-      const j = await r.json();
-      setOpts(j.data || []);
+    timer.current = setTimeout(() => {
+      const data = listWarga(nama.trim());
+      setOpts(data || []);
       setShowDrop(true);
     }, 200);
     return () => clearTimeout(timer.current);
@@ -62,20 +62,16 @@ function KeluarInner() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  async function loadRecent() {
-    const r = await fetch("/api/pengeluaran?limit=10", { cache: "no-store" });
-    const j = await r.json();
-    setRecent(j.data || []);
-    const rr = await fetch("/api/rekap", { cache: "no-store" });
-    const rj = await rr.json();
-    setSaldo(rj.saldo ?? 0);
-    const rt = await fetch("/api/tempat", { cache: "no-store" });
-    const jt = await rt.json();
-    setTempats(jt.data || []);
-    if (!tempatId && jt.data?.length > 0) setTempatId(jt.data[0].id);
+  function loadRecent() {
+    const { data } = listPengeluaran({ limit: 10 });
+    setRecent(data || []);
+    setSaldo(getRekap().saldo ?? 0);
+    const { data: tempatData } = listTempat();
+    setTempats(tempatData || []);
+    if (!tempatId && tempatData?.length > 0) setTempatId(tempatData[0].id);
   }
   useEffect(() => {
-    loadRecent();
+    seedFromServerIfEmpty().finally(loadRecent);
   }, []);
 
   async function submit(e: React.FormEvent) {
@@ -86,13 +82,7 @@ function KeluarInner() {
 
     setSaving(true);
     try {
-      const r = await fetch("/api/pengeluaran", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jenis, nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan, tempatId }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Gagal menyimpan");
+      const j = addPengeluaran({ jenis, nama: nama.trim(), jumlah: Number(jumlah), tanggal, bulan, keterangan, tempatId });
       setMsg({ ok: true, text: `Kas keluar ${rupiah(j.data.jumlah)} tercatat.` });
       setNama("");
       setJumlah("");
@@ -106,9 +96,9 @@ function KeluarInner() {
     }
   }
 
-  async function hapus(id: string) {
+  function hapus(id: string) {
     if (!confirm("Hapus catatan pengeluaran ini?")) return;
-    await fetch(`/api/pengeluaran?id=${id}`, { method: "DELETE" });
+    deletePengeluaran(id);
     loadRecent();
   }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { rupiah, todayISO } from "@/lib/format";
+import { exportData, getRekap, importData, seedFromServerIfEmpty } from "@/lib/localdb";
 
 type Preview = {
   fileName: string;
@@ -22,46 +23,35 @@ export default function DataPage() {
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function loadInfo() {
-    const r = await fetch("/api/rekap", { cache: "no-store" });
-    setInfo(await r.json());
+  function loadInfo() {
+    try {
+      setInfo(getRekap());
+    } catch (err: any) {
+      setMsg({ ok: false, text: err.message });
+    }
   }
   useEffect(() => {
-    loadInfo();
+    seedFromServerIfEmpty().finally(loadInfo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Baca respons fetch dengan aman: jangan langsung r.json() karena respons
-  // kosong/rusak dari server melempar "Unexpected end of JSON input".
-  async function parseResponse(r: Response) {
-    const text = await r.text();
-    let j: any = null;
-    try {
-      j = text ? JSON.parse(text) : null;
-    } catch {
-      /* respons bukan JSON */
-    }
-    if (j === null) {
-      throw new Error(
-        r.ok
-          ? "Server mengirim respons kosong/tidak valid. Coba lagi, atau restart server lalu ulangi."
-          : `Server merespons dengan status ${r.status}${text ? `: ${text.slice(0, 200)}` : " tanpa pesan"}.`
-      );
-    }
-    return j;
-  }
-
-  async function downloadBackup() {
+  // Murni lokal: unduh dari localStorage browser, tanpa lewat server.
+  // Dijamin jalan di Vercel (server Vercel read-only, jadi API lama gagal).
+  function downloadBackup() {
     setMsg(null);
-    const r = await fetch("/api/backup", { cache: "no-store" });
-    const j = await parseResponse(r);
-    const blob = new Blob([JSON.stringify(j, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `koley-backup-${todayISO()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setMsg({ ok: true, text: "File backup terunduh. Simpan di tempat aman (HP/laptop/flashdisk)." });
+    try {
+      const j = exportData();
+      const blob = new Blob([JSON.stringify(j, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `koley-backup-${todayISO()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg({ ok: true, text: "File backup terunduh. Simpan di tempat aman (HP/laptop/flashdisk)." });
+    } catch (err: any) {
+      setMsg({ ok: false, text: `Gagal mengunduh: ${err.message}` });
+    }
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -95,22 +85,17 @@ export default function DataPage() {
     }
   }
 
+  // Murni lokal: tulis ke localStorage browser, tanpa lewat server.
   async function doRestore() {
     if (!preview) return;
-    if (!confirm(`Ganti SELURUH data saat ini dengan isi "${preview.fileName}"?\n\nData lama otomatis disimpan sebagai backup di server.`)) return;
+    if (!confirm(`Ganti SELURUH data di perangkat ini dengan isi "${preview.fileName}"?`)) return;
     setBusy(true);
     setMsg(null);
     try {
-      const r = await fetch("/api/backup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(preview.parsed),
-      });
-      const j = await parseResponse(r);
-      if (!r.ok) throw new Error(j.error || "Restore gagal");
+      const imported = importData(preview.parsed);
       setMsg({
         ok: true,
-        text: `Restore berhasil: ${j.imported.wargas} warga, ${j.imported.transaksis} iuran masuk, ${j.imported.pengeluarans} pengeluaran, ${j.imported.tempats ?? 0} tempat.`,
+        text: `Restore berhasil: ${imported.wargas} warga, ${imported.transaksis} iuran masuk, ${imported.pengeluarans} pengeluaran, ${imported.tempats ?? 0} tempat.`,
       });
       setPreview(null);
       loadInfo();
@@ -130,7 +115,7 @@ export default function DataPage() {
 
       {info && (
         <div className="card p-4 text-sm">
-          <p className="font-semibold mb-1.5">Data saat ini di server</p>
+          <p className="font-semibold mb-1.5">Data saat ini di perangkat ini</p>
           {info.saldoAwal > 0 && (
             <div className="flex justify-between py-1"><span className="text-stone-500">Saldo awal</span><b>{rupiah(info.saldoAwal)}</b></div>
           )}
@@ -185,7 +170,7 @@ export default function DataPage() {
             <div className="flex justify-between py-1"><span className="text-stone-500">Pengeluaran</span><b>{preview.pengeluarans} • {rupiah(preview.totalKeluar)}</b></div>
             <div className="flex justify-between py-1"><span className="text-stone-500">Tempat saldo</span><b>{preview.tempats} tempat{preview.transfers > 0 ? ` • ${preview.transfers} transfer` : ""}</b></div>
             <p className="text-xs text-amber-700 mt-2">
-              ⚠️ Restore akan MENGGANTI seluruh data saat ini. Data lama otomatis dicadangkan di server.
+              ⚠️ Restore akan MENGGANTI seluruh data di perangkat ini.
             </p>
             <div className="flex gap-2 mt-3">
               <button disabled={busy} onClick={doRestore} className="btn-primary text-sm flex-1">
@@ -204,7 +189,8 @@ export default function DataPage() {
       )}
 
       <p className="text-xs text-stone-400">
-        Tips: selain unduh manual, cukup copy file <code>data/koley.json</code> di server sebagai cadangan cepat.
+        Tips: data tersimpan di browser perangkat ini (tetap ada walau offline setelah dibuka sekali).
+        Ganti HP/browser? Unduh backup dulu di perangkat lama, lalu Impor di perangkat baru.
       </p>
     </div>
   );

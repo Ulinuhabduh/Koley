@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { rupiah, todayISO } from "@/lib/format";
-import { fetchJSON } from "@/lib/api";
+import { listTempat, listTransfer, addTempat, updateTempat, deleteTempat, addTransfer, deleteTransfer, seedFromServerIfEmpty } from "@/lib/localdb";
 import RupiahInput from "@/components/RupiahInput";
 
 type Tempat = {
@@ -60,13 +60,11 @@ export default function TempatPage() {
   const [pindahKet, setPindahKet] = useState("");
   const [transfers, setTransfers] = useState<Transfer[]>([]);
 
-  async function load() {
+  function load() {
     setLoading(true);
     try {
-      const [rt, rm] = await Promise.all([
-        fetchJSON<{ data: Tempat[]; total: number }>("/api/tempat", { cache: "no-store" }),
-        fetchJSON<{ data: Transfer[] }>("/api/transfer?limit=20", { cache: "no-store" }),
-      ]);
+      const rt = listTempat();
+      const rm = listTransfer(20);
       setList(rt.data || []);
       setTotal(rt.total ?? 0);
       setTransfers(rm.data || []);
@@ -82,21 +80,17 @@ export default function TempatPage() {
   }
 
   useEffect(() => {
-    load();
+    seedFromServerIfEmpty().finally(load);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function tambah(e: React.FormEvent) {
+  function tambah(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
     if (nama.trim().length < 2) return setMsg({ ok: false, text: "Nama tempat minimal 2 huruf (cth: Kas Tunai, BRI, DANA)." });
     setSaving(true);
     try {
-      const j = await fetchJSON<{ data: { nama: string } }>("/api/tempat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nama: nama.trim(), keterangan: ket.trim(), saldoAwal: Number(awal) || 0, saldoAwalTanggal: awalTgl }),
-      });
+      const j = addTempat({ nama: nama.trim(), keterangan: ket.trim(), saldoAwal: Number(awal) || 0, saldoAwalTanggal: awalTgl });
       setMsg({ ok: true, text: `"${j.data.nama}" ditambahkan.` });
       setNama("");
       setKet("");
@@ -117,14 +111,10 @@ export default function TempatPage() {
     setEditAwal(String(t.saldoAwal || 0));
   }
 
-  async function simpanEdit(id: string) {
+  function simpanEdit(id: string) {
     setMsg(null);
     try {
-      await fetchJSON("/api/tempat", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, nama: editNama.trim(), keterangan: editKet.trim(), saldoAwal: Number(editAwal) || 0 }),
-      });
+      updateTempat(id, { nama: editNama.trim(), keterangan: editKet.trim(), saldoAwal: Number(editAwal) || 0 });
       setMsg({ ok: true, text: "Perubahan tersimpan." });
       setEditId(null);
       load();
@@ -133,11 +123,11 @@ export default function TempatPage() {
     }
   }
 
-  async function hapus(id: string, nm: string) {
+  function hapus(id: string, nm: string) {
     if (!confirm(`Hapus tempat "${nm}"?`)) return;
     setMsg(null);
     try {
-      await fetchJSON(`/api/tempat?id=${id}`, { method: "DELETE" });
+      deleteTempat(id);
       setMsg({ ok: true, text: `"${nm}" dihapus.` });
       load();
     } catch (err: any) {
@@ -145,18 +135,14 @@ export default function TempatPage() {
     }
   }
 
-  async function submitPindah(e: React.FormEvent) {
+  function submitPindah(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
     if (!dariId || !keId) return setMsg({ ok: false, text: "Pilih tempat asal & tujuan." });
     if (dariId === keId) return setMsg({ ok: false, text: "Asal & tujuan tidak boleh sama." });
     if (!Number(pindahJumlah) || Number(pindahJumlah) <= 0) return setMsg({ ok: false, text: "Jumlah pindah harus > 0." });
     try {
-      const j = await fetchJSON<{ data: { jumlah: number; dariNama: string; keNama: string } }>("/api/transfer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dariId, keId, jumlah: Number(pindahJumlah), tanggal: pindahTgl, keterangan: pindahKet }),
-      });
+      const j = addTransfer({ dariId, keId, jumlah: Number(pindahJumlah), tanggal: pindahTgl, keterangan: pindahKet });
       setMsg({ ok: true, text: `${rupiah(j.data.jumlah)} dipindah: ${j.data.dariNama} → ${j.data.keNama}.` });
       setPindahJumlah("");
       setPindahKet("");
@@ -166,10 +152,10 @@ export default function TempatPage() {
     }
   }
 
-  async function hapusTransfer(id: string) {
+  function hapusTransfer(id: string) {
     if (!confirm("Hapus catatan pindah saldo ini? Saldo akan kembali seperti sebelum dipindah.")) return;
     try {
-      await fetchJSON(`/api/transfer?id=${id}`, { method: "DELETE" });
+      deleteTransfer(id);
       load();
     } catch (err: any) {
       setMsg({ ok: false, text: err.message });

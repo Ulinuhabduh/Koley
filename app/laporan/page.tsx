@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { rupiah, bulanLabel, toCSV, downloadCSV } from "@/lib/format";
+import { listTransaksi, listPengeluaran, getRekap, listTempat, seedFromServerIfEmpty } from "@/lib/localdb";
 
 function LaporanInner() {
   const sp = useSearchParams();
@@ -16,28 +17,27 @@ function LaporanInner() {
   const [rekap, setRekap] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  async function load() {
+  function load(overrides?: { q?: string; bulan?: string; tempatId?: string }) {
     setLoading(true);
-    const p = new URLSearchParams();
-    if (q.trim()) p.set("q", q.trim());
-    if (bulan) p.set("bulan", bulan);
-    if (tempatId) p.set("tempatId", tempatId);
-    p.set("limit", "1000");
-    const [rm, rk, rr, rt] = await Promise.all([
-      fetch(`/api/transaksi?${p.toString()}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/pengeluaran?${p.toString()}`, { cache: "no-store" }).then((r) => r.json()),
-      fetch("/api/rekap", { cache: "no-store" }).then((r) => r.json()),
-      fetch("/api/tempat", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ data: [] })),
-    ]);
-    setMasuk(rm.data || []);
-    setKeluar(rk.data || []);
-    setRekap(rr);
-    if (rt.data) setTempats(rt.data);
-    setLoading(false);
+    try {
+      const qq = overrides?.q ?? q;
+      const bb = overrides?.bulan ?? bulan;
+      const tt = overrides?.tempatId ?? tempatId;
+      const rm = listTransaksi({ q: qq.trim() || undefined, bulan: bb || undefined, tempatId: tt || undefined, limit: 1000 });
+      const rk = listPengeluaran({ q: qq.trim() || undefined, bulan: bb || undefined, tempatId: tt || undefined, limit: 1000 });
+      const rr = getRekap();
+      const rt = listTempat();
+      setMasuk(rm.data || []);
+      setKeluar(rk.data || []);
+      setRekap(rr);
+      if (rt.data) setTempats(rt.data);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    load();
+    seedFromServerIfEmpty().finally(load);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -140,14 +140,14 @@ function LaporanInner() {
             </div>
           )}
           <div className="flex gap-2">
-            <button onClick={load} className="btn-primary text-sm flex-1">Tampilkan</button>
+            <button onClick={() => load()} className="btn-primary text-sm flex-1">Tampilkan</button>
             <button
               onClick={() => {
                 setQ("");
                 setBulan("");
                 setJenis("semua");
                 setTempatId("");
-                setTimeout(load, 50);
+                setTimeout(() => load({ q: "", bulan: "", tempatId: "" }), 50);
               }}
               className="btn-secondary text-sm"
             >

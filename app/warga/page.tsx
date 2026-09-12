@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { rupiah, bulanLabel, currentBulan, toCSV, downloadCSV } from "@/lib/format";
+import { listWarga, listTransaksi, listPengeluaran, addWarga, deleteWarga, seedFromServerIfEmpty } from "@/lib/localdb";
 
 type Warga = { id: string; nama: string; total: number; count: number; createdAt: string };
 type Trx = { id: string; wargaId: string; nama: string; jumlah: number; tanggal: string; bulan: string; keterangan: string };
@@ -24,33 +25,31 @@ export default function WargaPage() {
   const [detailKeluar, setDetailKeluar] = useState<Trx[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  async function load(search = "") {
+  function load(search = "") {
     setLoading(true);
-    const r = await fetch(`/api/warga?q=${encodeURIComponent(search)}`, { cache: "no-store" });
-    const j = await r.json();
-    setList(j.data || []);
-    setLoading(false);
+    try {
+      setList(listWarga(search));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function loadStatus(b: string) {
-    const r = await fetch(`/api/transaksi?bulan=${b}&limit=1000`, { cache: "no-store" });
-    const j = await r.json();
-    setBayarBulanIni(new Set((j.data || []).map((t: any) => t.wargaId)));
+  function loadStatus(b: string) {
+    setBayarBulanIni(new Set(listTransaksi({ bulan: b, limit: 1000 }).data.map((t) => t.wargaId)));
   }
 
-  async function loadDetail(wargaId: string) {
+  function loadDetail(wargaId: string) {
     setDetailLoading(true);
-    const [rm, rk] = await Promise.all([
-      fetch(`/api/transaksi?wargaId=${wargaId}&limit=1000`, { cache: "no-store" }).then((r) => r.json()),
-      fetch(`/api/pengeluaran?wargaId=${wargaId}&limit=1000`, { cache: "no-store" }).then((r) => r.json()),
-    ]);
-    setDetailTrx(rm.data || []);
-    setDetailKeluar(rk.data || []);
-    setDetailLoading(false);
+    try {
+      setDetailTrx(listTransaksi({ wargaId, limit: 1000 }).data);
+      setDetailKeluar(listPengeluaran({ wargaId, limit: 1000 }).data as unknown as Trx[]);
+    } finally {
+      setDetailLoading(false);
+    }
   }
 
   useEffect(() => {
-    load("");
+    seedFromServerIfEmpty().finally(() => load(""));
   }, []);
   useEffect(() => {
     loadStatus(bulan);
@@ -147,25 +146,23 @@ export default function WargaPage() {
     );
   }
 
-  async function tambah(e: React.FormEvent) {
+  function tambah(e: React.FormEvent) {
     e.preventDefault();
     if (!newNama.trim()) return;
-    const r = await fetch("/api/warga", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nama: newNama.trim() }),
-    });
-    const j = await r.json();
-    if (!r.ok) return alert(j.error || "Gagal");
-    setNewNama("");
-    setShowAdd(false);
-    load(q);
-    if (j.existed) alert(`"${j.data.nama}" sudah terdaftar.`);
+    try {
+      const j = addWarga(newNama.trim());
+      setNewNama("");
+      setShowAdd(false);
+      load(q);
+      if (j.existed) alert(`"${j.data.nama}" sudah terdaftar.`);
+    } catch (err: any) {
+      alert(err?.message || "Gagal");
+    }
   }
 
-  async function hapus(id: string, nama: string) {
+  function hapus(id: string, nama: string) {
     if (!confirm(`Hapus warga "${nama}"? Riwayat iurannya tetap tersimpan.`)) return;
-    await fetch(`/api/warga?id=${id}`, { method: "DELETE" });
+    deleteWarga(id);
     if (selected?.id === id) {
       setSelected(null);
       setDetailTrx([]);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { rupiah, bulanLabel } from "@/lib/format";
+import { getRekap, seedFromServerIfEmpty } from "@/lib/localdb";
 
 type TempatSaldo = {
   id: string;
@@ -38,15 +39,20 @@ export default function Dashboard() {
   const [data, setData] = useState<Rekap | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  function load() {
     setLoading(true);
-    const r = await fetch("/api/rekap", { cache: "no-store" });
-    setData(await r.json());
-    setLoading(false);
+    try {
+      setData(getRekap() as Rekap);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    load();
+    // Sekali saja: salin data server lama (localhost) ke browser bila browser masih kosong.
+    // Di Vercel ini no-op sehingga aman.
+    seedFromServerIfEmpty().finally(load);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const maxBar = Math.max(1, ...(data?.perBulan.flatMap((b) => [b.total, b.keluar]) || [1]));
