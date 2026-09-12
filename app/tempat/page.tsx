@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { rupiah, todayISO } from "@/lib/format";
+import { fetchJSON } from "@/lib/api";
 import RupiahInput from "@/components/RupiahInput";
 
 type Tempat = {
@@ -61,18 +62,23 @@ export default function TempatPage() {
 
   async function load() {
     setLoading(true);
-    const [rt, rm] = await Promise.all([
-      fetch("/api/tempat", { cache: "no-store" }).then((r) => r.json()),
-      fetch("/api/transfer?limit=20", { cache: "no-store" }).then((r) => r.json()),
-    ]);
-    setList(rt.data || []);
-    setTotal(rt.total ?? 0);
-    setTransfers(rm.data || []);
-    if ((rt.data || []).length > 0) {
-      if (!dariId) setDariId(rt.data[0].id);
-      if (!keId && rt.data.length > 1) setKeId(rt.data[1].id);
+    try {
+      const [rt, rm] = await Promise.all([
+        fetchJSON<{ data: Tempat[]; total: number }>("/api/tempat", { cache: "no-store" }),
+        fetchJSON<{ data: Transfer[] }>("/api/transfer?limit=20", { cache: "no-store" }),
+      ]);
+      setList(rt.data || []);
+      setTotal(rt.total ?? 0);
+      setTransfers(rm.data || []);
+      if ((rt.data || []).length > 0) {
+        if (!dariId) setDariId(rt.data[0].id);
+        if (!keId && rt.data.length > 1) setKeId(rt.data[1].id);
+      }
+    } catch (err: any) {
+      setMsg({ ok: false, text: err.message });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -86,13 +92,11 @@ export default function TempatPage() {
     if (nama.trim().length < 2) return setMsg({ ok: false, text: "Nama tempat minimal 2 huruf (cth: Kas Tunai, BRI, DANA)." });
     setSaving(true);
     try {
-      const r = await fetch("/api/tempat", {
+      const j = await fetchJSON<{ data: { nama: string } }>("/api/tempat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nama: nama.trim(), keterangan: ket.trim(), saldoAwal: Number(awal) || 0, saldoAwalTanggal: awalTgl }),
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Gagal menambah tempat");
       setMsg({ ok: true, text: `"${j.data.nama}" ditambahkan.` });
       setNama("");
       setKet("");
@@ -116,13 +120,11 @@ export default function TempatPage() {
   async function simpanEdit(id: string) {
     setMsg(null);
     try {
-      const r = await fetch("/api/tempat", {
+      await fetchJSON("/api/tempat", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, nama: editNama.trim(), keterangan: editKet.trim(), saldoAwal: Number(editAwal) || 0 }),
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Gagal menyimpan");
       setMsg({ ok: true, text: "Perubahan tersimpan." });
       setEditId(null);
       load();
@@ -134,11 +136,13 @@ export default function TempatPage() {
   async function hapus(id: string, nm: string) {
     if (!confirm(`Hapus tempat "${nm}"?`)) return;
     setMsg(null);
-    const r = await fetch(`/api/tempat?id=${id}`, { method: "DELETE" });
-    const j = await r.json();
-    if (!r.ok) return setMsg({ ok: false, text: j.error || "Gagal menghapus" });
-    setMsg({ ok: true, text: `"${nm}" dihapus.` });
-    load();
+    try {
+      await fetchJSON(`/api/tempat?id=${id}`, { method: "DELETE" });
+      setMsg({ ok: true, text: `"${nm}" dihapus.` });
+      load();
+    } catch (err: any) {
+      setMsg({ ok: false, text: err.message });
+    }
   }
 
   async function submitPindah(e: React.FormEvent) {
@@ -148,13 +152,11 @@ export default function TempatPage() {
     if (dariId === keId) return setMsg({ ok: false, text: "Asal & tujuan tidak boleh sama." });
     if (!Number(pindahJumlah) || Number(pindahJumlah) <= 0) return setMsg({ ok: false, text: "Jumlah pindah harus > 0." });
     try {
-      const r = await fetch("/api/transfer", {
+      const j = await fetchJSON<{ data: { jumlah: number; dariNama: string; keNama: string } }>("/api/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dariId, keId, jumlah: Number(pindahJumlah), tanggal: pindahTgl, keterangan: pindahKet }),
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Gagal memindahkan saldo");
       setMsg({ ok: true, text: `${rupiah(j.data.jumlah)} dipindah: ${j.data.dariNama} → ${j.data.keNama}.` });
       setPindahJumlah("");
       setPindahKet("");
@@ -166,8 +168,12 @@ export default function TempatPage() {
 
   async function hapusTransfer(id: string) {
     if (!confirm("Hapus catatan pindah saldo ini? Saldo akan kembali seperti sebelum dipindah.")) return;
-    await fetch(`/api/transfer?id=${id}`, { method: "DELETE" });
-    load();
+    try {
+      await fetchJSON(`/api/transfer?id=${id}`, { method: "DELETE" });
+      load();
+    } catch (err: any) {
+      setMsg({ ok: false, text: err.message });
+    }
   }
 
   return (

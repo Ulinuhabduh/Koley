@@ -4,18 +4,29 @@ import { rupiah, todayISO } from "@/lib/format";
 
 // GET /api/transfer?limit= -> riwayat pindah saldo antar tempat
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const limit = parseInt(searchParams.get("limit") || "50", 10);
-  const db = readDB();
-  const list = [...db.transfers]
-    .sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt))
-    .slice(0, limit);
-  return NextResponse.json({ data: list, total: db.transfers.length });
+  try {
+    const { searchParams } = new URL(req.url);
+    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const db = readDB();
+    const list = [...db.transfers]
+      .sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt))
+      .slice(0, limit);
+    return NextResponse.json({ data: list, total: db.transfers.length });
+  } catch (err: any) {
+    return NextResponse.json({ error: `Gagal membaca transfer: ${err?.message || err}` }, { status: 500 });
+  }
 }
 
 // POST /api/transfer { dariId, keId, jumlah, tanggal?, keterangan? }
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
+  try {
+    let body: any = {};
+    try {
+      const text = await req.text();
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      return NextResponse.json({ error: "Body bukan JSON valid / kosong." }, { status: 400 });
+    }
   const dariId = String(body.dariId || "");
   const keId = String(body.keId || "");
   const jumlah = Number(body.jumlah);
@@ -54,15 +65,22 @@ export async function POST(req: Request) {
   db.transfers.push(tr);
   writeDB(db);
   return NextResponse.json({ data: tr }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: `Gagal memindahkan saldo: ${err?.message || err}` }, { status: 500 });
+  }
 }
 
 // DELETE /api/transfer?id=xxx
 export async function DELETE(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id wajib" }, { status: 400 });
-  const db = readDB();
-  db.transfers = db.transfers.filter((t) => t.id !== id);
-  writeDB(db);
-  return NextResponse.json({ ok: true });
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "id wajib" }, { status: 400 });
+    const db = readDB();
+    db.transfers = db.transfers.filter((t) => t.id !== id);
+    writeDB(db);
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: `Gagal menghapus transfer: ${err?.message || err}` }, { status: 500 });
+  }
 }
